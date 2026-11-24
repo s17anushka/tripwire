@@ -39,6 +39,15 @@ def _float(name: str, default: float) -> float:
 
 
 def load_settings() -> Settings:
+    # Read a .env file from the folder you run the server in (or a parent folder).
+    # Variables already set in the real environment win over the file.
+    try:
+        from dotenv import find_dotenv, load_dotenv
+
+        load_dotenv(find_dotenv(usecwd=True), override=False)
+    except ImportError:
+        pass
+
     return Settings(
         database_url=os.getenv("DATABASE_URL") or "sqlite:///./tripwire.db",
         gateway_api_key=os.getenv("AI_GATEWAY_API_KEY") or None,

@@ -154,6 +154,25 @@ def test_parse_answers_malformed_raises():
         parse_answers({"answers": {}})
 
 
+def test_http_error_body_is_included_in_jev_error():
+    import asyncio
+
+    import httpx
+
+    from app.jev import HttpJevClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": {"message": "No credits", "type": "access_denied"}})
+
+    jev = HttpJevClient(
+        Settings(gateway_api_key="secret-key-123"), transport=httpx.MockTransport(handler)
+    )
+    with pytest.raises(JevError) as exc:
+        asyncio.run(jev.assess("goal", "tool", {}))
+    assert "403" in str(exc.value) and "No credits" in str(exc.value)
+    assert "secret-key-123" not in str(exc.value)  # the API key never leaks into error text
+
+
 def test_health_reports_mock_mode():
     body = client().get("/health").json()
     assert body["jev"] == "mock"

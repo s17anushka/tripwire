@@ -103,7 +103,13 @@ def parse_answers(data: dict[str, Any]) -> JevResult:
 
 
 class HttpJevClient:
-    def __init__(self, settings: Settings, timeout: float = 10.0):
+    def __init__(
+        self,
+        settings: Settings,
+        timeout: float = 10.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ):
+        self._transport = transport  # lets tests inject a fake server
         if settings.gateway_api_key:
             self._key = settings.gateway_api_key
             self._base = settings.jev_base_url or GATEWAY_BASE_URL
@@ -119,7 +125,7 @@ class HttpJevClient:
     async def assess(self, goal: str, tool: str, arguments: dict[str, Any]) -> JevResult:
         payload = build_request(self._model, goal, tool, arguments)
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
+            async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
                 resp = await client.post(
                     f"{self._base.rstrip('/')}/v1/systemone",
                     headers={"Authorization": f"Bearer {self._key}"},
@@ -127,6 +133,10 @@ class HttpJevClient:
                 )
             resp.raise_for_status()
             return parse_answers(resp.json())
+        except httpx.HTTPStatusError as exc:
+            # Show the server's own explanation (e.g. "no credits", "invalid key"), not just the status.
+            body = exc.response.text.strip().replace("\n", " ")[:300]
+            raise JevError(f"Jev returned HTTP {exc.response.status_code}: {body or exc.response.reason_phrase}") from exc
         except httpx.HTTPError as exc:
             raise JevError(f"Jev request failed: {exc}") from exc
         except ValueError as exc:  # invalid JSON body

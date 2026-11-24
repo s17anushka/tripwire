@@ -4,6 +4,7 @@
 
 Agents with real tool access can delete data, send emails, or run SQL they were never asked to run. Asking a big model to review every call is slow and expensive; approving everything by hand doesn't scale. Tripwire sits in the middle: a fast decision model ([Jev](https://vercel.com/ai-gateway/models/typesafe-ai/jev) by TypeSafe AI) scores every tool call in one cheap request, routine calls go straight through, risky ones are blocked or held for a human, and only the uncertain ones are escalated to Claude.
 
+![Tripwire dashboard showing a pending approval and the audit trail](docs/dashboard.png)
 
 ---
 
@@ -112,7 +113,7 @@ with tw.goal("Clean up old temp logs"):          # the user's original request
 
 ## Use real Jev and Claude
 
-Copy `.env.example` to `.env` and fill in what you have:
+Copy `.env.example` to `.env` (in the folder where you run `uvicorn`), fill in what you have, then **restart the server**. Check http://localhost:8000/health: it should say `"jev": "live"`.
 
 | Variable | Purpose |
 | --- | --- |
@@ -141,6 +142,15 @@ Copy `.env.example` to `.env` and fill in what you have:
 Action statuses: `allowed`, `blocked`, `pending`, `approved`, `rejected`.
 
 ---
+
+## Troubleshooting
+
+| What you see | Cause and fix |
+| --- | --- |
+| `/health` says `"jev": "mock"` | The key isn't being read. Put it in a file named `.env` (not `.env.example`) in the folder where you run `uvicorn`, as `AI_GATEWAY_API_KEY=...`, then restart the server. |
+| Dashboard shows `404`, or the SDK reports `303 See Other` with an `/en-US/...` address | Another program is already using port 8000 (a Django dev server does by default). Start Tripwire on a free port, `uvicorn app.main:app --reload --port 8010`, open `http://localhost:8010/dashboard`, and set `TRIPWIRE_URL=http://localhost:8010` before running the demo agent. |
+| An action says `Jev returned HTTP 403 ... customer_verification_required` | Vercel AI Gateway needs a credit card on file before it serves requests; adding one also unlocks its free credits. Add it in the Vercel dashboard under AI Gateway. No code change or restart needed. |
+| Every call waits for a human with `Jev unavailable` | This is the fail-closed rule working: if Jev can't be reached, nothing runs without a person's approval. Read the reason on the card; it includes the server's own error message. |
 
 ## Project layout
 
@@ -175,9 +185,17 @@ The tests cover the decision policy, the Jev request/response shapes, the approv
 
 This is an early version. Being upfront about what has and hasn't been verified:
 
-- **Not yet run against the real services.** The Jev and Claude reviewer paths were built from the published TypeSafe / Vercel AI Gateway docs and are covered by unit tests with stubs, but have not been exercised with live API keys. Expect to fix small things on the first real call.
+- **No real Jev decision verified yet.** A live call has reached Vercel AI Gateway with a valid key, but was refused until a credit card was added to the Vercel account (see Troubleshooting). The request and response shapes follow the published TypeSafe / Vercel AI Gateway docs and are covered by unit tests with stubs; expect small fixes on the first successful call. The Claude reviewer path has not been run live either.
 - **No authentication.** Anyone who can reach the server can approve actions. Keep it on `localhost` until auth is added.
 - **Probabilities need calibration.** Jev's confidence should be checked against real human decisions before you trust the thresholds in production.
 - **Jev is text-only and always picks an answer**, which is why the `unclear` option exists.
 - Jev's `score` question type is not used yet; this version uses probability (`noul`) and `choice` questions only.
 
+## Roadmap
+
+- [ ] Next.js dashboard (same endpoints)
+- [ ] Login for the dashboard and API
+- [ ] Calibration view: Jev confidence vs. human decisions
+- [ ] TypeScript SDK
+- [ ] Dockerfile and Postgres setup
+- [ ] Per-tool policies (e.g. always ask a human before `send_email`)
