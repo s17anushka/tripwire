@@ -190,11 +190,3 @@ This is an early version. Being upfront about what has and hasn't been verified:
 - **Jev is text-only and always picks an answer**, which is why the `unclear` option exists.
 - Jev's `score` question type is not used yet; this version uses probability (`noul`) and `choice` questions only.
 
-## Roadmap
-
-- [ ] Next.js dashboard (same endpoints)
-- [ ] Login for the dashboard and API
-- [ ] Calibration view: Jev confidence vs. human decisions
-- [ ] TypeScript SDK
-- [ ] Dockerfile and Postgres setup
-- [ ] Per-tool policies (e.g. always ask a human before `send_email`)
