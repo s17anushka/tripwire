@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tripwire Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #6b6a64;
+    --line: #e4e2da;
+    --allow: #1f7a4d;   --allow-bg: #e3f3ea;
+    --block: #b3261e;   --block-bg: #fbe6e4;
+    --wait:  #8a5a00;   --wait-bg:  #fdf0d2;
+    --human: #3b4fa8;   --human-bg: #e6e9f8;
+    --accent: #1d1d1b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --surface: #1e1e1c; --text: #ecebe6; --muted: #9b9a92; --line: #33322e;
+      --allow: #6fd0a0; --allow-bg: #17301f;
+      --block: #ff9a92; --block-bg: #3a1a18;
+      --wait:  #f0c060; --wait-bg:  #3a2e12;
+      --human: #9fb0ff; --human-bg: #20264a;
+      --accent: #ecebe6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); }
+  .chips { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 28px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 26px; line-height: 1.1; }
+  .stat span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  section { margin-bottom: 32px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .card.pending { border-color: var(--wait); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .tool { font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .time { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .reason { color: var(--muted); margin: 6px 0 0; }
+  .goal { margin: 6px 0 0; font-size: 14px; }
+  .goal i { color: var(--muted); font-style: normal; }
+  pre { margin: 8px 0 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+        overflow-x: auto; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+  .pill { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; }
+  .pill.allowed  { color: var(--allow); background: var(--allow-bg); }
+  .pill.approved { color: var(--allow); background: var(--allow-bg); }
+  .pill.blocked  { color: var(--block); background: var(--block-bg); }
+  .pill.rejected { color: var(--block); background: var(--block-bg); }
+  .pill.pending  { color: var(--wait);  background: var(--wait-bg); }
+  .by { font-size: 12px; color: var(--muted); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  button { font: inherit; font-weight: 600; padding: 7px 16px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; background: var(--surface); color: var(--text); }
+  button.approve { background: var(--allow); border-color: var(--allow); color: #fff; }
+  button.reject  { color: var(--block); border-color: var(--block); }
+  button:disabled { opacity: .5; cursor: wait; }
+  details > summary { cursor: pointer; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details .more { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 14px; }
+  .nums { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); padding: 14px 4px; }
+  .error { background: var(--block-bg); color: var(--block); padding: 10px 14px; border-radius: 10px; margin-bottom: 16px; display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tripwire</h1>
+    <span class="sub">Every tool call your agent tries, and what happened to it.</span>
+    <div class="chips"><span class="chip" id="chip-jev">Jev: …</span><span class="chip" id="chip-rev">Reviewer: …</span><span class="chip">Auto-refresh 3s</span></div>
+  </header>
+
+  <div class="error" id="error"></div>
+  <div class="stats" id="stats"></div>
+
+  <section>
+    <h2>Needs your approval</h2>
+    <div id="pending"></div>
+  </section>
+
+  <section>
+    <h2>Audit trail</h2>
+    <div id="log"></div>
+  </section>
+</div>
+
+<script>
+const openIds = new Set();
+const busy = new Set();
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = text;   // textContent only: agent data is untrusted
+  return n;
+}
+
+function parseTime(s) {
+  // SQLite returns UTC timestamps without a timezone marker.
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z");
+}
+function ago(s) {
+  const sec = Math.max(0, Math.round((Date.now() - parseTime(s)) / 1000));
+  if (sec < 60) return sec + "s ago";
+  if (sec < 3600) return Math.floor(sec / 60) + "m ago";
+  if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
+  return parseTime(s).toLocaleDateString();
+}
+const pct = (x) => (x === null || x === undefined) ? "n/a" : Math.round(x * 100) + "%";
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(path + " returned " + r.status);
+  return r.json();
+}
+
+async function decide(id, approve) {
+  busy.add(id); await refresh();
+  try {
+    await api("/approvals/" + id, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approve }),
+    });
+  } catch (e) { showError(e.message); }
+  busy.delete(id); await refresh();
+}
+
+function details(a) {
+  const d = el("div", "more");
+  const goal = el("div", "goal");
+  goal.append(el("i", null, "User goal: "), document.createTextNode(a.goal));
+  d.append(goal);
+  const nums = el("div", "nums");
+  nums.append(
+    el("span", null, "Jev says: " + (a.jev_decision || "n/a") + " (" + pct(a.jev_confidence) + " sure)"),
+    el("span", null, "Destructive: " + pct(a.is_destructive)),
+    el("span", null, "Off-task: " + pct(a.off_task)),
+    el("span", null, "Source: " + (a.jev_source || "none")),
+  );
+  d.append(nums);
+  d.append(el("pre", null, JSON.stringify(a.arguments, null, 2)));
+  if (a.reviewer_note) d.append(el("div", "goal", "Note: " + a.reviewer_note));
+  return d;
+}
+
+function pendingCard(a) {
+  const c = el("div", "card pending");
+  const row = el("div", "row");
+  row.append(el("span", "pill pending", "waiting"), el("span", "tool", a.tool), el("span", "time", ago(a.created_at)));
+  c.append(row);
+  const g = el("p", "goal"); g.append(el("i", null, "Goal: "), document.createTextNode(a.goal)); c.append(g);
+  c.append(el("p", "reason", a.reason));
+  c.append(el("pre", null, JSON.stringify(a.arguments, null, 2)));
+  const act = el("div", "actions");
+  const ok = el("button", "approve", "Approve"), no = el("button", "reject", "Reject");
+  ok.disabled = no.disabled = busy.has(a.id);
+  ok.onclick = () => decide(a.id, true);
+  no.onclick = () => decide(a.id, false);
+  act.append(ok, no); c.append(act);
+  return c;
+}
+
+function logRow(a) {
+  const d = el("details", "card");
+  d.open = openIds.has(a.id);
+  d.addEventListener("toggle", () => { d.open ? openIds.add(a.id) : openIds.delete(a.id); });
+  const s = el("summary");
+  const row = el("div", "row");
+  row.append(
+    el("span", "pill " + a.status, a.status),
+    el("span", "tool", a.tool),
+    el("span", "by", "by " + a.decided_by),
+    el("span", "time", ago(a.created_at)),
+  );
+  s.append(row, el("p", "reason", a.reason));
+  d.append(s, details(a));
+  return d;
+}
+
+function render(actions, health) {
+  document.getElementById("chip-jev").textContent = "Jev: " + health.jev;
+  document.getElementById("chip-rev").textContent = "Reviewer: " + health.reviewer;
+
+  const counts = { allowed: 0, blocked: 0, pending: 0, approved: 0, rejected: 0 };
+  actions.forEach(a => counts[a.status]++);
+  const stats = document.getElementById("stats"); stats.replaceChildren();
+  for (const k of ["allowed", "blocked", "pending", "approved", "rejected"]) {
+    const s = el("div", "stat"); s.append(el("b", null, counts[k]), el("span", null, k)); stats.append(s);
+  }
+
+  const pending = actions.filter(a => a.status === "pending").reverse();
+  const pbox = document.getElementById("pending"); pbox.replaceChildren();
+  if (!pending.length) pbox.append(el("div", "empty", "Nothing waiting. Calls that need a human will appear here."));
+  pending.forEach(a => pbox.append(pendingCard(a)));
+
+  const lbox = document.getElementById("log"); lbox.replaceChildren();
+  if (!actions.length) lbox.append(el("div", "empty", "No actions yet. Run examples/demo_agent.py to create some."));
+  actions.forEach(a => lbox.append(logRow(a)));
+}
+
+function showError(msg) {
+  const e = document.getElementById("error");
+  e.textContent = msg || "";
+  e.style.display = msg ? "block" : "none";
+}
+
+async function refresh() {
+  let actions, health;
+  try {
+    [actions, health] = await Promise.all([api("/actions?limit=200"), api("/health")]);
+  } catch (e) { showError("Can't reach the Tripwire server: " + e.message); return; }
+  try {
+    render(actions, health); showError(null);
+  } catch (e) { showError("Dashboard display error: " + e.message); }
+}
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
