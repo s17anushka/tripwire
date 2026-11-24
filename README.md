@@ -4,7 +4,6 @@
 
 Agents with real tool access can delete data, send emails, or run SQL they were never asked to run. Asking a big model to review every call is slow and expensive; approving everything by hand doesn't scale. Tripwire sits in the middle: a fast decision model ([Jev](https://vercel.com/ai-gateway/models/typesafe-ai/jev) by TypeSafe AI) scores every tool call in one cheap request, routine calls go straight through, risky ones are blocked or held for a human, and only the uncertain ones are escalated to Claude.
 
-![Tripwire dashboard showing a pending approval and the audit trail](docs/dashboard.png)
 
 ---
 
